@@ -1,0 +1,349 @@
+{
+  "scope": "community",
+  "name": "google-docs",
+  "version": "1.0.0",
+  "description": "Commands to interact with Google Docs using the Google Docs API v1",
+  "license": "MIT",
+  "tags": [
+    "google",
+    "docs",
+    "google-docs",
+    "documents",
+    "google-workspace",
+    "cli"
+  ],
+  "dependencies": [
+    "community/google-auth",
+    "aux4/curl"
+  ],
+  "system": [
+    [
+      "test:jq --version",
+      "brew:jq",
+      "linux:jq"
+    ]
+  ],
+  "profiles": [
+    {
+      "name": "main",
+      "commands": [
+        {
+          "name": "google",
+          "execute": [
+            "profile:google"
+          ],
+          "help": {
+            "text": "Google commands"
+          }
+        }
+      ]
+    },
+    {
+      "name": "google",
+      "commands": [
+        {
+          "name": "docs",
+          "execute": [
+            "profile:google:docs"
+          ],
+          "help": {
+            "text": "Google Docs commands"
+          }
+        }
+      ]
+    },
+    {
+      "name": "google:docs",
+      "commands": [
+        {
+          "name": "services",
+          "private": true,
+          "execute": [
+            "echo '{\"name\":\"docs\",\"scope\":\"https://www.googleapis.com/auth/documents\",\"readonlyScope\":\"https://www.googleapis.com/auth/documents.readonly\",\"description\":\"Create, read and edit Google Docs documents\"}'"
+          ],
+          "help": {
+            "text": "Output service metadata for auth resolution"
+          }
+        },
+        {
+          "name": "create",
+          "execute": [
+            "set:requestPath=/documents",
+            "set:requestUrl=${apiUrl}${requestPath}",
+            "aux4 curl auth-request --provider google param(tokenFile) --method POST --header 'Content-Type: application/json' --url value(requestUrl) --body 'object(title)'"
+          ],
+          "help": {
+            "text": "Create a new empty document",
+            "variables": [
+              {
+                "name": "title",
+                "text": "Title of the new document"
+              },
+              {
+                "name": "tokenFile",
+                "text": "Where the Google OAuth token is stored",
+                "default": "${aux4HomeDir}/.oauth/google.json",
+                "env": "AUX4_GOOGLE_TOKEN_FILE"
+              },
+              {
+                "name": "apiUrl",
+                "text": "Google Docs API base URL",
+                "default": "https://docs.googleapis.com/v1",
+                "env": "DOCS_API_URL",
+                "private": true
+              }
+            ]
+          }
+        },
+        {
+          "name": "get",
+          "execute": [
+            "set:requestUrl=${apiUrl}/documents/${documentId}",
+            "aux4 curl auth-request --provider google param(tokenFile) --url value(requestUrl)"
+          ],
+          "help": {
+            "text": "Get a document by ID",
+            "variables": [
+              {
+                "name": "documentId",
+                "text": "The document ID",
+                "arg": true
+              },
+              {
+                "name": "tokenFile",
+                "text": "Where the Google OAuth token is stored",
+                "default": "${aux4HomeDir}/.oauth/google.json",
+                "env": "AUX4_GOOGLE_TOKEN_FILE"
+              },
+              {
+                "name": "apiUrl",
+                "text": "Google Docs API base URL",
+                "default": "https://docs.googleapis.com/v1",
+                "env": "DOCS_API_URL",
+                "private": true
+              }
+            ]
+          }
+        },
+        {
+          "name": "append",
+          "execute": [
+            "set:requestList=!TEXT=value(text) jq -cn '[{insertText:{endOfSegmentLocation:{},text:env.TEXT}}]'",
+            "set:requestUrl=${apiUrl}/documents/${documentId}:batchUpdate",
+            "aux4 curl auth-request --provider google param(tokenFile) --method POST --header 'Content-Type: application/json' --url value(requestUrl) --body 'object(requestList:requests)'"
+          ],
+          "help": {
+            "text": "Append text to the end of a document",
+            "variables": [
+              {
+                "name": "documentId",
+                "text": "The document ID",
+                "arg": true
+              },
+              {
+                "name": "text",
+                "text": "The text to append to the end of the document"
+              },
+              {
+                "name": "requestList",
+                "text": "Batch update requests as a JSON array, derived from --text",
+                "default": "",
+                "type": "json",
+                "private": true
+              },
+              {
+                "name": "tokenFile",
+                "text": "Where the Google OAuth token is stored",
+                "default": "${aux4HomeDir}/.oauth/google.json",
+                "env": "AUX4_GOOGLE_TOKEN_FILE"
+              },
+              {
+                "name": "apiUrl",
+                "text": "Google Docs API base URL",
+                "default": "https://docs.googleapis.com/v1",
+                "env": "DOCS_API_URL",
+                "private": true
+              }
+            ]
+          }
+        },
+        {
+          "name": "batch-update",
+          "execute": [
+            "set:requestUrl=${apiUrl}/documents/${documentId}:batchUpdate",
+            "aux4 curl auth-request --provider google param(tokenFile) --method POST --header 'Content-Type: application/json' --url value(requestUrl) --body 'object(requests)'"
+          ],
+          "help": {
+            "text": "Apply a raw batchUpdate requests array to a document",
+            "variables": [
+              {
+                "name": "documentId",
+                "text": "The document ID",
+                "arg": true
+              },
+              {
+                "name": "requests",
+                "text": "A raw JSON array of Google Docs batchUpdate request objects",
+                "type": "json"
+              },
+              {
+                "name": "tokenFile",
+                "text": "Where the Google OAuth token is stored",
+                "default": "${aux4HomeDir}/.oauth/google.json",
+                "env": "AUX4_GOOGLE_TOKEN_FILE"
+              },
+              {
+                "name": "apiUrl",
+                "text": "Google Docs API base URL",
+                "default": "https://docs.googleapis.com/v1",
+                "env": "DOCS_API_URL",
+                "private": true
+              }
+            ]
+          }
+        },
+        {
+          "name": "export",
+          "execute": [
+            "nout:FMT=value(format) jq -rn '{md:\"text/markdown\",txt:\"text/plain\",html:\"text/html\",pdf:\"application/pdf\",docx:\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\"}[env.FMT] // \"\"'",
+            "set:mimeType=$response",
+            "when:${mimeType}==:exit:1:Unsupported format '${format}'. Choose one of: md, txt, html, pdf, docx.",
+            "nout:MIME=value(mimeType) jq -rn 'env.MIME | @uri'",
+            "set:encodedMimeType=$response",
+            "set:requestUrl=${driveApiUrl}/files/${documentId}/export?mimeType=${encodedMimeType}",
+            "aux4 curl auth-request --provider google param(tokenFile) --url value(requestUrl) --output value(output)",
+            "log:Exported ${documentId} as ${format} to ${output}"
+          ],
+          "help": {
+            "text": "Export a document to a file (md, txt, html, pdf or docx)",
+            "variables": [
+              {
+                "name": "documentId",
+                "text": "The document ID",
+                "arg": true
+              },
+              {
+                "name": "format",
+                "text": "Export format",
+                "default": "md",
+                "options": [
+                  "md",
+                  "txt",
+                  "html",
+                  "pdf",
+                  "docx"
+                ]
+              },
+              {
+                "name": "output",
+                "text": "Path to write the exported file"
+              },
+              {
+                "name": "tokenFile",
+                "text": "Where the Google OAuth token is stored",
+                "default": "${aux4HomeDir}/.oauth/google.json",
+                "env": "AUX4_GOOGLE_TOKEN_FILE"
+              },
+              {
+                "name": "driveApiUrl",
+                "text": "Google Drive API base URL (export runs through Drive)",
+                "default": "https://www.googleapis.com/drive/v3",
+                "env": "DRIVE_API_URL",
+                "private": true
+              }
+            ]
+          }
+        },
+        {
+          "name": "import",
+          "execute": [
+            "nout:IMPORT_FILE=value(file) jq -rn 'env.IMPORT_FILE | split(\"/\") | last | sub(\"\\\\.[^.]+$\"; \"\")'",
+            "set:sourceTitle=$response",
+            "set:docTitle=nvl(title, sourceTitle)",
+            "set:metadata=!DOC_TITLE=value(docTitle) jq -cn '{name: env.DOC_TITLE, mimeType: \"application/vnd.google-apps.document\"}'",
+            "when:${parent}!=:set:metadata=!DOC_TITLE=value(docTitle) DOC_PARENT=value(parent) jq -cn '{name: env.DOC_TITLE, mimeType: \"application/vnd.google-apps.document\", parents: [env.DOC_PARENT]}'",
+            "set:requestPath=/files?uploadType=multipart&fields=id,name,mimeType,webViewLink",
+            "set:requestUrl=${uploadApiUrl}${requestPath}",
+            "aux4 curl auth-request --provider google param(tokenFile) --method POST --header 'Content-Type: multipart/related' --url value(requestUrl) --body value(metadata) --upload value(file)"
+          ],
+          "help": {
+            "text": "Create a new Google Doc from a local Markdown, HTML or text file",
+            "variables": [
+              {
+                "name": "file",
+                "text": "Path to the source file (.md, .html, .txt, .docx, .odt or .rtf); the source format is detected from the extension",
+                "arg": true
+              },
+              {
+                "name": "title",
+                "text": "Title for the new document (default: the file name without its extension)",
+                "default": ""
+              },
+              {
+                "name": "parent",
+                "text": "Drive folder ID to create the document in (default: My Drive root)",
+                "default": ""
+              },
+              {
+                "name": "tokenFile",
+                "text": "Where the Google OAuth token is stored",
+                "default": "${aux4HomeDir}/.oauth/google.json",
+                "env": "AUX4_GOOGLE_TOKEN_FILE"
+              },
+              {
+                "name": "uploadApiUrl",
+                "text": "Google Drive upload API base URL (import runs through Drive)",
+                "default": "https://www.googleapis.com/upload/drive/v3",
+                "env": "DRIVE_UPLOAD_API_URL",
+                "private": true
+              }
+            ]
+          }
+        },
+        {
+          "name": "update",
+          "execute": [
+            "when:${file}==:exit:1:--file is required (path to the source .md, .html or .txt file).",
+            "set:metadata={}",
+            "when:${title}!=:set:metadata=!DOC_TITLE=value(title) jq -cn '{name: env.DOC_TITLE}'",
+            "set:requestUrl=${uploadApiUrl}/files/${documentId}?uploadType=multipart&fields=id,name,mimeType,webViewLink",
+            "aux4 curl auth-request --provider google param(tokenFile) --method PATCH --header 'Content-Type: multipart/related' --url value(requestUrl) --body value(metadata) --upload value(file)"
+          ],
+          "help": {
+            "text": "Replace an existing Google Doc's content from a local file (keeps the same document ID and URL)",
+            "variables": [
+              {
+                "name": "documentId",
+                "text": "The document ID to update",
+                "arg": true
+              },
+              {
+                "name": "file",
+                "text": "Path to the source file (.md, .html, .txt, .docx, .odt or .rtf); the format is detected from the extension",
+                "default": ""
+              },
+              {
+                "name": "title",
+                "text": "Rename the document (default: leave the current title unchanged)",
+                "default": ""
+              },
+              {
+                "name": "tokenFile",
+                "text": "Where the Google OAuth token is stored",
+                "default": "${aux4HomeDir}/.oauth/google.json",
+                "env": "AUX4_GOOGLE_TOKEN_FILE"
+              },
+              {
+                "name": "uploadApiUrl",
+                "text": "Google Drive upload API base URL (update runs through Drive)",
+                "default": "https://www.googleapis.com/upload/drive/v3",
+                "env": "DRIVE_UPLOAD_API_URL",
+                "private": true
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
