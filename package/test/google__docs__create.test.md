@@ -1,18 +1,19 @@
 # google docs create
 
-Part of the `core` group in `test.suite.md`. The Google Docs API is replaced by a
-local echo server (`mock-echo.js`), so the test asserts the request aux4 builds —
-method, path, `Authorization` header and JSON body — without touching a real
-document.
+Part of the `core` group in `test.suite.md`. The Google Docs API is replaced by an
+`aux4/mock` server, so the command runs against a realistic document resource while
+the outgoing `POST /documents` request — method, path, `Authorization` header,
+`Content-Type` and JSON body — is asserted with `aux4 mock verify`, without touching
+a real document.
 
 ## against a local mock API
 
 ```beforeAll
-nohup node mock-echo.js 18990 >/dev/null 2>&1 &
-sleep 2
+aux4 aux4 pkger install aux4/mock
 ```
 
 ```afterAll
+aux4 mock stop --port 18990 2>/dev/null
 pkill -f "18990" 2>/dev/null
 ```
 
@@ -29,38 +30,37 @@ pkill -f "18990" 2>/dev/null
 }
 ```
 
+### should return the created document resource
+
+```execute
+aux4 mock start --port 18990 >/dev/null 2>&1
+sleep 1
+aux4 mock stub --port 18990 --method POST --path /documents --status 200 --body '{"documentId":"1AbCdEfGhIjKlMnOpQrStUvWxYz","title":"Weekly Notes","body":{"content":[{"sectionBreak":{}}]},"revisionId":"ALm37B","documentStyle":{}}' >/dev/null 2>&1
+aux4 google docs create --title "Weekly Notes" --tokenFile google-token.json --apiUrl http://127.0.0.1:18990/api
+```
+
+```expect:partial
+"title":"Weekly Notes"
+```
+
 ### should POST to the documents endpoint with a bearer token
 
 ```execute
-aux4 google docs create --title "Weekly Notes" --tokenFile google-token.json --apiUrl http://127.0.0.1:18990
+aux4 mock verify --port 18990 --method POST --path /documents --header "authorization=Bearer test-access-token" --header "content-type=application/json"
 ```
 
 ```expect:partial
-"authorization": "Bearer test-access-token"
-```
-
-```expect:partial
-"contentType": "application/json"
-```
-
-```expect:partial
-"method": "POST"
-```
-
-```expect:partial
-"path": "/documents"
+verify ok
 ```
 
 ### should send the title in the request body
 
 ```execute
-aux4 google docs create --title "Weekly Notes" --tokenFile google-token.json --apiUrl http://127.0.0.1:18990 | aux4 json get --path '$.body'
+aux4 mock verify --port 18990 --method POST --path /documents --body-contains '"title":"Weekly Notes"'
 ```
 
-```expect:json
-{
-  "title": "Weekly Notes"
-}
+```expect:partial
+verify ok
 ```
 
 ## without a stored token
@@ -68,7 +68,7 @@ aux4 google docs create --title "Weekly Notes" --tokenFile google-token.json --a
 ### should report that the google provider has no token
 
 ```execute
-aux4 google docs create --title "Weekly Notes" --tokenFile ./no-such-directory/google.json --apiUrl http://127.0.0.1:18990
+aux4 google docs create --title "Weekly Notes" --tokenFile ./no-such-directory/google.json --apiUrl http://127.0.0.1:18990/api
 ```
 
 ```error:partial
